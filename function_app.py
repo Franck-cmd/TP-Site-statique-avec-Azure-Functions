@@ -9,7 +9,8 @@ import logging
 
 app = func.FunctionApp()
 
-# ---------- UPLOAD ----------
+# ---------------- UPLOAD ----------------
+@app.function_name(name="upload")
 @app.route(route="upload", methods=["POST"], auth_level=func.AuthLevel.ANONYMOUS)
 def upload(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -30,10 +31,12 @@ def upload(req: func.HttpRequest) -> func.HttpResponse:
         return func.HttpResponse(blob.url, status_code=200)
 
     except Exception as e:
+        logging.exception("Upload failed")
         return func.HttpResponse(str(e), status_code=500)
 
 
-# ---------- LIST ----------
+# ---------------- LIST ----------------
+@app.function_name(name="list")
 @app.route(route="list", methods=["GET"], auth_level=func.AuthLevel.ANONYMOUS)
 def list_images(req: func.HttpRequest) -> func.HttpResponse:
     try:
@@ -41,26 +44,28 @@ def list_images(req: func.HttpRequest) -> func.HttpResponse:
             os.environ["AzureWebJobsStorage"]
         )
 
-        container = blob_service.get_container_client("thumbnails")
+        container = blob_service.get_container_client("images")
 
         images = [
             {
                 "name": blob.name,
-                "url": f"https://imagetp.blob.core.windows.net/thumbnails/{blob.name}"
+                "url": f"https://imagetp.blob.core.windows.net/images/{blob.name}"
             }
             for blob in container.list_blobs()
         ]
 
         return func.HttpResponse(
             json.dumps(images),
-            mimetype="application/json"
+            mimetype="application/json",
+            status_code=200
         )
 
     except Exception as e:
+        logging.exception("List failed")
         return func.HttpResponse(str(e), status_code=500)
 
 
-# ---------- RESIZE (BLOB TRIGGER) ----------
+# ---------------- RESIZE ----------------
 @app.function_name(name="resize")
 @app.blob_trigger(
     arg_name="blob",
@@ -74,7 +79,7 @@ def resize(blob: func.InputStream):
         os.environ["AzureWebJobsStorage"]
     )
 
-    thumbnails_container = blob_service.get_container_client("thumbnails")
+    thumbnails = blob_service.get_container_client("thumbnails")
 
     image = Image.open(blob)
     image.thumbnail((256, 256))
@@ -85,10 +90,8 @@ def resize(blob: func.InputStream):
 
     filename = blob.name.split("/")[-1]
 
-    thumbnails_container.upload_blob(
+    thumbnails.upload_blob(
         name=filename,
         data=output,
         overwrite=True
     )
-
-    logging.info(f"Thumbnail created: {filename}")
