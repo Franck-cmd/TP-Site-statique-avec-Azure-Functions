@@ -23,7 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Deploy to Azure Functions
+      - name: Deploy Azure Functions using Publish Profile
         uses: Azure/functions-action@v1
         with:
           app-name: funcimagetp
